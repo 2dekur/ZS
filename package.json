@@ -1,0 +1,77 @@
+{
+  "name": "zsound",
+  "version": "0.0.1",
+  "description": "Zsound — the music player that doesn't flinch",
+  "author": "2dekur",
+  "repository": "github:2dekur/ZS",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "electron:dev": "concurrently -k \"pnpm dev\" \"wait-on tcp:5173 && electron .\"",
+    "electron:build": "pnpm build && electron-builder --win --x64",
+    "preview": "vite preview",
+    "fetch:engine": "node scripts/fetch-engine.mjs",
+    "check:api": "node --no-warnings scripts/check-api.ts",
+    "check:engine": "node --no-warnings scripts/check-engine.ts",
+    "check:quality": "node --no-warnings scripts/check-quality.ts",
+    "release": "pnpm build && electron-builder --win --x64 --publish always"
+  },
+  "build": {
+    "appId": "com.zsound.app",
+    "productName": "Zsound",
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/bin/ytdlp",
+        "to": "bin/ytdlp"
+      }
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "2dekur",
+        "repo": "ZS",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.0.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "jotai": "^3.0.2",
+    "lucide-react": "^1.79.0",
+    "postcss": "^8.4.47",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.0",
+    "vite": "^5.4.0",
+    "vite-plugin-electron": "^0.28.0",
+    "vite-plugin-electron-renderer": "^0.14.0",
+    "wait-on": "^8.0.0"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  }
+}

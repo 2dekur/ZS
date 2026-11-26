@@ -1,0 +1,6 @@
+- ZS Engine: moteur de lecture maison, chaque titre démarre en ~0,2 s
+- ZS Quality : meilleur flux Opus disponible, volume calibré, chemin audio 48 kHz pur
+- Nouvelle interface bleu sombre en liquid glass, animations GPU
+- Français et anglais, au choix dans les Paramètres
+- Notifications de mise à jour avec résumé, rien ne se télécharge sans ton accord
+- Option accélération matérielle dans les Paramètres
