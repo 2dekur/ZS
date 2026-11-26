@@ -30,7 +30,7 @@ export function TrackCard({ track, onPlay }: { track: Track; onPlay: () => void 
         <Cover src={track.thumbnail} size={320} className="cover-zoom w-full aspect-square" rounded="rounded-xl" />
         <PlayFab onClick={(e) => { e.stopPropagation(); onPlay() }} />
       </div>
-      <div className="text-sm text-zs-text truncate">{track.title}</div>
+      <div className="text-sm text-zs-text truncate hl">{track.title}</div>
       <div className="text-xs text-zs-muted truncate">{track.artist}</div>
     </div>
   )
@@ -42,7 +42,7 @@ export function CollectionCard({ item, onOpen }: { item: Collection; onOpen: () 
       <div className="relative mb-2 overflow-hidden rounded-xl">
         <Cover src={item.thumbnail} size={320} className="cover-zoom w-full aspect-square" rounded="rounded-xl" />
       </div>
-      <div className="text-sm text-zs-text truncate">{item.title}</div>
+      <div className="text-sm text-zs-text truncate hl">{item.title}</div>
       <div className="text-xs text-zs-muted line-clamp-2">{item.subtitle}</div>
     </div>
   )

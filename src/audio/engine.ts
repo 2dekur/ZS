@@ -1,5 +1,6 @@
 import { EQ_BANDS } from '../store/player'
 import type { Settings } from '../types'
+import { loudnessCompensation } from './zsloudness'
 
 export const audio = new Audio()
 audio.crossOrigin = 'anonymous'
@@ -15,13 +16,18 @@ let preamp: GainNode
 let filters: BiquadFilterNode[] = []
 let wetConnected = false
 let bypassToken = 0
+let compLow: BiquadFilterNode
+let compHigh: BiquadFilterNode
 let settings: Settings | null = null
 let trackLevel = 1
+let playingQuality = ''
+let uiVolume = 1
 
 const RAMP = 0.015
 
 // Same formula as loudnessGain() in electron/zsquality.ts.
 const loudnessGain = (db: number | null | undefined) => (db != null && db > 0 ? Math.pow(10, -db / 20) : 1)
+
 
 function setParam(p: AudioParam, v: number) {
   p.setTargetAtTime(v, ctx!.currentTime, RAMP)
@@ -44,8 +50,16 @@ function graph(): AudioContext {
     f.Q.value = 1
     return f
   })
+  compLow = c.createBiquadFilter()
+  compLow.type = 'lowshelf'
+  compLow.frequency.value = 105
+  compHigh = c.createBiquadFilter()
+  compHigh.type = 'highshelf'
+  compHigh.frequency.value = 9000
   source.connect(trackGain)
-  trackGain.connect(dry)
+  trackGain.connect(compLow)
+  compLow.connect(compHigh)
+  compHigh.connect(dry)
   dry.connect(c.destination)
   preamp.connect(filters[0])
   filters.slice(1).forEach((f, i) => filters[i].connect(f))
@@ -61,9 +75,12 @@ function apply() {
   const eqOn = settings.eqEnabled
   const gains = eqOn ? settings.eq : EQ_BANDS.map(() => 0)
   if (eqOn && !wetConnected) {
-    trackGain.connect(preamp)
+    compHigh.connect(preamp)
     wetConnected = true
   }
+  const comp = playingQuality === 'zs' && settings.zsLoudness !== false ? loudnessCompensation(uiVolume) : { bass: 0, treble: 0 }
+  setParam(compLow.gain, comp.bass)
+  setParam(compHigh.gain, comp.treble)
   filters.forEach((f, i) => setParam(f.gain, gains[i] ?? 0))
   // Lower the input by the biggest boost so EQ never clips.
   setParam(preamp.gain, Math.pow(10, -Math.max(0, ...gains) / 20))
@@ -75,7 +92,7 @@ function apply() {
     const token = ++bypassToken
     setTimeout(() => {
       if (token !== bypassToken || settings?.eqEnabled || !wetConnected) return
-      trackGain.disconnect(preamp)
+      compHigh.disconnect(preamp)
       wetConnected = false
     }, 120)
   }
@@ -90,6 +107,7 @@ export function applySettings(s: Settings) {
 export function setStreamMeta(meta: { quality: string; loudnessDb: number | null } | null) {
   if (!meta) return
   trackLevel = loudnessGain(meta.loudnessDb)
+  playingQuality = meta.quality
   apply()
 }
 
@@ -104,11 +122,28 @@ export function unload() {
   audio.load()
 }
 
+let idleTimer: ReturnType<typeof setTimeout> | undefined
+
+// Build the graph at launch but keep it suspended: first play skips AudioContext setup, idle costs no CPU.
+export function prepare() {
+  void graph().suspend()
+}
+
 export async function play() {
+  clearTimeout(idleTimer)
   await graph().resume()
   await audio.play()
 }
 
+// Release the audio device after a while on pause so an idle Zsound uses no CPU.
+export function pause() {
+  audio.pause()
+  clearTimeout(idleTimer)
+  idleTimer = setTimeout(() => { if (audio.paused) void ctx?.suspend() }, 15_000)
+}
+
 export function setVolume(volume: number, muted: boolean) {
   audio.volume = muted ? 0 : volume * volume
+  uiVolume = volume
+  apply()
 }

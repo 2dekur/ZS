@@ -59,8 +59,9 @@
     border: 1px solid transparent;
     transition: color 0.15s ease, background 0.15s ease;
   }
-  .nav-item:hover { @apply text-zs-text; }
+  .nav-item:hover { color: var(--zs-accent-light); }
   .nav-item.active { @apply text-zs-text; background: var(--glass-strong); border-color: var(--edge); box-shadow: var(--shine); }
+  .nav-item.active:hover { color: var(--zs-accent-light); }
 
   .lib-item { @apply flex items-center gap-3 p-1.5 rounded-xl w-full; border: 1px solid transparent; }
   .lib-item:hover { background: rgba(255, 255, 255, 0.04); }
@@ -97,7 +98,12 @@
   .btn-primary:hover { transform: scale(1.04); }
   .btn-primary:active { transform: scale(0.96); }
 
-  .chip { @apply px-3 py-1 rounded-full text-xs; background: var(--glass-strong); border: 1px solid var(--edge); color: var(--zs-text); }
+  .chip { @apply px-3 py-1 rounded-full text-xs; background: var(--glass-strong); border: 1px solid var(--edge); color: var(--zs-text); transition: color 0.15s ease; }
+  .chip:hover { color: var(--zs-accent-light); }
+
+  /* Hover = ZS Blue: titles inside any hovered row, card, tile or menu entry. */
+  .hl { transition: color 0.15s ease; }
+  .group:hover .hl, .hl:hover { color: var(--zs-accent-light); }
   .chip.on { background: var(--glass-blue); border-color: rgba(143, 176, 255, 0.35); color: #fff; }
 
   .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -127,7 +133,6 @@
     animation: shimmer 1.2s linear infinite;
   }
 
-  .eq-anim { animation: eqPulse 0.9s ease-in-out infinite; }
   .zs-badge { color: var(--zs-accent-light); letter-spacing: 0.04em; }
 }
 
@@ -156,10 +161,9 @@
 [data-anim='lite'] .view-in { animation: fadeIn 0.12s ease-out; }
 [data-anim='lite'] .btn-primary:hover, [data-anim='lite'] .btn-primary:active { transform: none; }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-@keyframes eqPulse { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.6); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .fade-in, .skeleton, .eq-anim, .view-in, .pop-in, .slide-in, .cover-in { animation: none !important; }
+  .fade-in, .skeleton, .view-in, .pop-in, .slide-in, .cover-in { animation: none !important; }
   .lift:hover, .group:hover .cover-zoom { transform: none !important; }
 }
 

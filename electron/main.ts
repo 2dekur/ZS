@@ -3,8 +3,9 @@ import path from 'path'
 import fs from 'fs'
 import { autoUpdater } from 'electron-updater'
 import * as ytm from './ytmusic'
-import { resolve, prefetch, initEngine } from './zsengine'
+import { resolve, initEngine } from './zsengine'
 import { pick, describe, type Quality } from './zsquality'
+import * as zsbuf from './zsbuffer'
 
 nativeTheme.themeSource = 'dark'
 
@@ -63,15 +64,31 @@ const asId = (id: unknown): string => {
   return id
 }
 
-// zsa://stream/<videoId>?q=<quality>: proxies the audio so the renderer can run it through Web Audio.
+let lastQuality: Quality = 'zs'
+
+async function bufferStream(id: string, whole: boolean) {
+  const r = await resolve(id)
+  const f = r && pick(r, lastQuality)
+  if (f) (whole ? zsbuf.fill : zsbuf.warm)(`${id}:${f.itag}`, f)
+}
+
+// zsa://stream/<videoId>?q=<quality>: serves the audio from ZS Buffer (RAM) when it can, else proxies it,
+// so the renderer can run it through Web Audio.
 async function handleAudio(req: Request): Promise<Response> {
   const u = new URL(req.url)
   const id = asId(u.pathname.replace(/^\//, ''))
   const q = asQuality(u.searchParams.get('q'))
+  lastQuality = q
   for (let attempt = 0; attempt < 2; attempt++) {
     const r = await resolve(id, { force: attempt > 0 })
     const f = r && pick(r, q)
     if (!f) return new Response('stream unavailable', { status: 502 })
+    if (attempt === 0) {
+      const key = `${id}:${f.itag}`
+      zsbuf.fill(key, f)
+      const fromMemory = zsbuf.serve(key, f, req.headers.get('range'))
+      if (fromMemory) return fromMemory
+    }
     const headers = new Headers(f.headers)
     const range = req.headers.get('range')
     if (range) headers.set('Range', range)
@@ -175,8 +192,12 @@ ipcMain.handle('ytm:lyrics', (_e, id) => ytm.lyrics(asId(id)).catch(() => null))
 ipcMain.handle('ytm:home', () => ytm.home())
 ipcMain.handle('ytm:collection', (_e, id) => ytm.collection(str(id)))
 ipcMain.on('stream:prefetch', (_e, id) => {
-  try { prefetch(asId(id)) } catch { /* ignore bad ids */ }
+  try { bufferStream(asId(id), false).catch(() => {}) } catch { /* ignore bad ids */ }
 })
+ipcMain.on('stream:preload', (_e, id) => {
+  try { bufferStream(asId(id), true).catch(() => {}) } catch { /* ignore bad ids */ }
+})
+ipcMain.handle('stream:stats', () => zsbuf.stats())
 ipcMain.handle('stream:info', async (_e, id, q) => {
   const quality = asQuality(q)
   const r = await resolve(asId(id))

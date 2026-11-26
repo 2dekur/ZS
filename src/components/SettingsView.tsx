@@ -7,12 +7,7 @@ import { Toggle } from './ui'
 import { useT, langAtom, LANGS, type Key } from '../i18n'
 import type { Quality } from '../types'
 
-const QUALITIES: { id: Quality; mbPerMin: string }[] = [
-  { id: 'low', mbPerMin: '0.4' },
-  { id: 'normal', mbPerMin: '0.5' },
-  { id: 'high', mbPerMin: '1' },
-  { id: 'zs', mbPerMin: '1.2' },
-]
+const QUALITIES: Quality[] = ['low', 'normal', 'high', 'zs']
 
 function Section({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
   return (
@@ -103,23 +98,23 @@ export default function SettingsView() {
 
       <Section title={t('set.quality')} desc={t('set.qualityDesc')}>
         <div className="grid grid-cols-2 gap-3">
-          {QUALITIES.map((q) => {
-            const on = s.quality === q.id
-            const zs = q.id === 'zs'
+          {QUALITIES.map((id) => {
+            const on = s.quality === id
+            const zs = id === 'zs'
             return (
               <button
-                key={q.id}
+                key={id}
                 type="button"
-                onClick={() => patch({ quality: q.id })}
+                onClick={() => patch({ quality: id })}
                 className={`lift relative text-left p-4 rounded-2xl border transition-colors ${on ? 'border-[rgba(143,176,255,0.4)]' : 'border-white/10 hover:border-white/20'}`}
                 style={{ background: on ? 'var(--glass-blue)' : 'var(--glass)', boxShadow: 'var(--shine)' }}
               >
                 {on && <Check className="absolute top-3 right-3 w-4 h-4 text-zs-accent-light" />}
                 <div className={`text-sm font-semibold flex items-center gap-1.5 ${zs ? 'zs-badge' : 'text-zs-text'}`}>
-                  {zs && <Sparkles className="w-4 h-4" />}{t(`q.${q.id}` as Key)}
+                  {zs && <Sparkles className="w-4 h-4" />}{t(`q.${id}` as Key)}
                 </div>
-                <div className="text-xs text-zs-muted mt-1">{t(`q.${q.id}.spec` as Key)}</div>
-                <div className="text-xs text-zs-muted">{t('q.data', { n: q.mbPerMin })}</div>
+                <div className="text-xs text-zs-muted mt-1 leading-relaxed">{t(`q.${id}.spec` as Key)}</div>
+                {zs && <div className="text-xs text-zs-muted leading-relaxed">{t('q.zsPlus')}</div>}
                 {zs && <div className="text-[11px] mt-2 zs-badge">{t('q.zsOnly')}</div>}
               </button>
             )
@@ -134,6 +129,9 @@ export default function SettingsView() {
       </Section>
 
       <Section title={t('set.playback')}>
+        <Line label={t('set.zsLoudness')} desc={t('set.zsLoudnessDesc')}>
+          <Toggle label={t('set.zsLoudness')} on={s.zsLoudness !== false} onChange={(v) => patch({ zsLoudness: v })} />
+        </Line>
         <Line label={t('set.normalize')} desc={t('set.normalizeDesc')}>
           <Toggle label={t('set.normalize')} on={s.normalize} onChange={(v) => patch({ normalize: v })} />
         </Line>

@@ -36,26 +36,26 @@ export default function Sidebar() {
 
       <div className="mt-4 mb-1 px-3 flex items-center justify-between">
         <span className="text-[11px] font-semibold text-zs-muted uppercase tracking-widest">{t('nav.yourMusic')}</span>
-        <button type="button" title={t('lib.newPlaylist')} aria-label={t('lib.newPlaylist')} onClick={newPlaylist} className="text-zs-muted hover:text-zs-text">
+        <button type="button" title={t('lib.newPlaylist')} aria-label={t('lib.newPlaylist')} onClick={newPlaylist} className="text-zs-muted hover:text-zs-accent-light">
           <Plus className="w-4 h-4" />
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-thin flex flex-col gap-0.5">
-        <button type="button" onClick={() => navigate({ kind: 'liked' })} className={`lib-item ${is({ kind: 'liked' }) ? 'active' : ''}`}>
+        <button type="button" onClick={() => navigate({ kind: 'liked' })} className={`lib-item group ${is({ kind: 'liked' }) ? 'active' : ''}`}>
           <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #2a5bf0, #0f2a7a)' }}>
             <Heart className="w-4 h-4 text-white" fill="currentColor" />
           </div>
           <div className="min-w-0 text-left">
-            <div className="text-sm text-zs-text truncate">{t('lib.liked')}</div>
+            <div className="text-sm text-zs-text truncate hl">{t('lib.liked')}</div>
             <div className="text-xs text-zs-muted">{t('lib.songs', { n: liked.length })}</div>
           </div>
         </button>
         {playlists.map((p) => (
-          <button key={p.id} type="button" onClick={() => navigate({ kind: 'playlist', id: p.id })} className={`lib-item ${is({ kind: 'playlist', id: p.id }) ? 'active' : ''}`}>
+          <button key={p.id} type="button" onClick={() => navigate({ kind: 'playlist', id: p.id })} className={`lib-item group ${is({ kind: 'playlist', id: p.id }) ? 'active' : ''}`}>
             <Cover src={p.tracks[0]?.thumbnail} size={96} className="w-9 h-9" rounded="rounded-lg" />
             <div className="min-w-0 text-left">
-              <div className="text-sm text-zs-text truncate">{p.name}</div>
+              <div className="text-sm text-zs-text truncate hl">{p.name}</div>
               <div className="text-xs text-zs-muted">{t('lib.songs', { n: p.tracks.length })}</div>
             </div>
           </button>

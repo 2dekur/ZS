@@ -48,7 +48,7 @@ export default function UpdateNotice() {
           )}
         </div>
         {state.status === 'available' && (
-          <button type="button" aria-label={t('upd.dismiss')} title={t('upd.dismiss')} onClick={() => setDismissed(state.version)} className="text-zs-muted hover:text-zs-text">
+          <button type="button" aria-label={t('upd.dismiss')} title={t('upd.dismiss')} onClick={() => setDismissed(state.version)} className="text-zs-muted hover:text-zs-accent-light">
             <X className="w-4 h-4" />
           </button>
         )}

@@ -59,10 +59,10 @@ export default function HomeView() {
               type="button"
               onClick={() => playContext({ tracks: quick, index: i })}
               onMouseEnter={() => window.zsound.prefetch(tr.id)}
-              className="quick-tile lift flex items-center gap-3 rounded-xl overflow-hidden text-left"
+              className="quick-tile lift group flex items-center gap-3 rounded-xl overflow-hidden text-left"
             >
               <Cover src={tr.thumbnail} size={120} className="w-14 h-14" rounded="rounded-none" />
-              <span className="text-sm font-semibold text-zs-text truncate pr-3">{tr.title}</span>
+              <span className="text-sm font-semibold text-zs-text truncate pr-3 hl">{tr.title}</span>
             </button>
           ))}
         </div>

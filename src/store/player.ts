@@ -14,7 +14,7 @@ export const EQ_PRESETS = {
   loudness: [5, 2, -1, 2, 5],
   electronic: [5, 3, -1, 2, 4],
 }
-export const DEFAULT_SETTINGS: Settings = { quality: 'zs', normalize: true, eqEnabled: false, eq: [0, 0, 0, 0, 0], autoplay: true }
+export const DEFAULT_SETTINGS: Settings = { quality: 'zs', normalize: true, eqEnabled: false, eq: [0, 0, 0, 0, 0], autoplay: true, zsLoudness: true }
 
 // --- persisted ---
 export const volumeAtom = persist('volume', 0.8)

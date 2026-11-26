@@ -41,4 +41,16 @@ assert.equal(loudnessGain(0), 1)
 assert.ok(Math.abs(loudnessGain(6) - 0.5012) < 1e-4)
 assert.ok(Math.abs(loudnessGain(20) - 0.1) < 1e-9)
 
+// Loudness compensation: none at full volume, grows as volume drops, never exceeds the volume cut.
+const { loudnessCompensation } = await import('../src/audio/zsloudness.ts')
+assert.deepEqual(loudnessCompensation(1), { bass: 0, treble: 0 })
+assert.deepEqual(loudnessCompensation(0), { bass: 0, treble: 0 })
+const half = loudnessCompensation(0.5)
+assert.ok(Math.abs(half.bass - 3.01) < 0.01 && Math.abs(half.treble - 0.963) < 0.01)
+for (const v of [0.05, 0.1, 0.3, 0.6, 0.9]) {
+  const c = loudnessCompensation(v)
+  const cut = -40 * Math.log10(v)
+  assert.ok(c.bass < cut && c.treble < cut && c.bass <= 9 && c.treble <= 3)
+}
+
 console.log('ZS Quality OK')

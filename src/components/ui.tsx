@@ -46,7 +46,7 @@ export function IconBtn({ onClick, title, active, disabled, className = '', chil
       disabled={disabled}
       onClick={onClick}
       className={`flex items-center justify-center rounded-full transition-colors disabled:opacity-30 disabled:pointer-events-none ${
-        active ? 'text-zs-accent-light' : 'text-zs-muted hover:text-zs-text'
+        active ? 'text-zs-accent-light' : 'text-zs-muted hover:text-zs-accent-light'
       } ${className}`}
     >
       {children}

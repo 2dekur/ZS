@@ -4,16 +4,25 @@ import { ChevronLeft, Minus, Square, X } from 'lucide-react'
 import { canGoBackAtom, backAtom } from '../store/player'
 import { useT } from '../i18n'
 
-function ZSLogo() {
+// "Zsound" drawn as one monoline ribbon: the Z is the logo, the other letters share its stroke and gradient.
+function Wordmark() {
   return (
-    <svg width="22" height="22" viewBox="4 6 24 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <svg height="17" viewBox="0 0 66 14" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zsound">
       <defs>
-        <linearGradient id="zs-blue" x1="6" y1="8" x2="26" y2="24" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#8fb0ff" />
-          <stop offset="1" stopColor="#2a5bf0" />
+        <linearGradient id="zs-word" x1="0" y1="0" x2="66" y2="14" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#a8c0ff" />
+          <stop offset="1" stopColor="#3d6dff" />
         </linearGradient>
       </defs>
-      <path d="M7 9 H17 C21 9 21.5 13 18.5 15 L11.5 19 C8.5 21 9 23 13 23 H25" stroke="url(#zs-blue)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+      <g stroke="url(#zs-word)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M1.3 1.3 H9.5 C10.6 1.3 11 2.5 10.2 3.3 L2.4 10.7 C1.6 11.5 2 12.7 3.1 12.7 H11.3" />
+        <path d="M20.5 5.3 H16.9 C15.1 5.3 15.1 9 16.9 9 H19.1 C20.9 9 20.9 12.7 19.1 12.7 H15.5" />
+        <circle cx="28.4" cy="9" r="3.7" />
+        <path d="M36.3 5.3 V9.4 C36.3 11.4 37.6 12.7 39.4 12.7 C41.2 12.7 42.5 11.4 42.5 9.4 M42.5 5.3 V12.7" />
+        <path d="M46.7 12.7 V8.6 C46.7 6.6 48 5.3 49.8 5.3 C51.6 5.3 52.9 6.6 52.9 8.6 V12.7 M46.7 5.3 V12.7" />
+        <circle cx="60.8" cy="9" r="3.7" />
+        <path d="M64.5 1.3 V12.7" />
+      </g>
     </svg>
   )
 }
@@ -24,7 +33,7 @@ function WinBtn({ onClick, label, className = '', children }: { onClick: () => v
       type="button"
       aria-label={label}
       onClick={onClick}
-      className={`titlebar-no-drag w-11 h-10 flex items-center justify-center text-zs-muted hover:text-zs-text hover:bg-white/[0.06] transition-colors ${className}`}
+      className={`titlebar-no-drag w-11 h-10 flex items-center justify-center text-zs-muted hover:text-zs-accent-light hover:bg-white/[0.06] transition-colors ${className}`}
     >
       {children}
     </button>
@@ -38,8 +47,7 @@ export default function Titlebar() {
   return (
     <div className="titlebar-drag flex items-center h-10 flex-shrink-0 select-none">
       <div className="titlebar-no-drag flex items-center gap-2 pl-4">
-        <ZSLogo />
-        <span className="text-[15px] font-semibold tracking-tight text-zs-text">Zsound</span>
+        <Wordmark />
         <button
           type="button"
           title={t('nav.back')}

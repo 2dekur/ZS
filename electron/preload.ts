@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('zsound', {
   home: () => ipcRenderer.invoke('ytm:home'),
   collection: (id: string) => ipcRenderer.invoke('ytm:collection', id),
   prefetch: (id: string) => ipcRenderer.send('stream:prefetch', id),
+  preload: (id: string) => ipcRenderer.send('stream:preload', id),
+  bufferStats: () => ipcRenderer.invoke('stream:stats'),
   streamInfo: (id: string, q: string) => ipcRenderer.invoke('stream:info', id, q),
   appInfo: () => ipcRenderer.invoke('app:info'),
   setHardwareAcceleration: (on: boolean) => ipcRenderer.invoke('app:set-hwaccel', on),

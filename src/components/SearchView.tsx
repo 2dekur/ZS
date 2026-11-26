@@ -43,7 +43,13 @@ export default function SearchView() {
     setCursor(-1)
     if (!query.trim() || !focused) return setSugg([])
     let live = true
-    window.zsound.suggestions(query).then((s) => { if (live) setSugg(s.filter((x) => x !== query.toLowerCase()).slice(0, 6)) })
+    window.zsound.suggestions(query).then((s) => {
+      if (!live) return
+      const list = s.filter((x) => x !== query.toLowerCase()).slice(0, 6)
+      setSugg(list)
+      // Warm the top suggestion so picking it shows results instantly.
+      if (list[0]) window.zsound.search(list[0]).catch(() => {})
+    })
     return () => { live = false }
   }, [query, focused])
 
@@ -82,7 +88,7 @@ export default function SearchView() {
             spellCheck={false}
           />
           {query && (
-            <button type="button" aria-label={t('search.clear')} onClick={() => { setQuery(''); inputRef.current?.focus() }} className="text-zs-muted hover:text-zs-text">
+            <button type="button" aria-label={t('search.clear')} onClick={() => { setQuery(''); inputRef.current?.focus() }} className="text-zs-muted hover:text-zs-accent-light">
               <X className="w-4 h-4" />
             </button>
           )}
@@ -96,10 +102,10 @@ export default function SearchView() {
                 role="option"
                 aria-selected={i === cursor}
                 onMouseDown={(e) => { e.preventDefault(); pick(s) }}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-left ${i === cursor ? 'bg-white/[0.08]' : 'hover:bg-white/[0.07]'}`}
+                className={`group w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-left ${i === cursor ? 'bg-white/[0.08]' : 'hover:bg-white/[0.07]'}`}
               >
-                <Search className="w-4 h-4 text-zs-muted" />
-                <span className="text-zs-text truncate">{s}</span>
+                <Search className="w-4 h-4 text-zs-muted hl" />
+                <span className={`truncate hl ${i === cursor ? 'text-zs-accent-light' : 'text-zs-text'}`}>{s}</span>
               </button>
             ))}
           </div>

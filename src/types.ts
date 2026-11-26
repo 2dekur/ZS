@@ -58,6 +58,7 @@ export interface Settings {
   eqEnabled: boolean
   eq: number[]
   autoplay: boolean
+  zsLoudness?: boolean
 }
 
 export type View =
@@ -79,6 +80,8 @@ declare global {
       home: () => Promise<Shelf[]>
       collection: (id: string) => Promise<CollectionPage>
       prefetch: (id: string) => void
+      preload: (id: string) => void
+      bufferStats: () => Promise<{ tracks: number; mb: number }>
       streamInfo: (id: string, q: Quality) => Promise<StreamMeta | null>
       appInfo: () => Promise<{ version: string; packaged: boolean; hardwareAcceleration: boolean; hardwareAccelerationPref: boolean }>
       setHardwareAcceleration: (on: boolean) => Promise<boolean>

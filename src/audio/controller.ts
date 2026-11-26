@@ -14,6 +14,7 @@ const { audio } = engine
 let loadedId: string | null = null
 let loadedQuality: string | null = null
 let autoplayFor: string | null = null
+let preloadTimer: ReturnType<typeof setTimeout> | undefined
 
 function playSafe() {
   engine.play().catch((e: DOMException) => {
@@ -25,6 +26,10 @@ function prefetchAhead() {
   const q = store.get(queueAtom)
   const i = store.get(queueIndexAtom)
   for (const t of q.slice(i + 1, i + 4)) window.zsound.prefetch(t.id)
+  // Load the whole next track once the current one has a head start, so skipping is instant.
+  const nextId = q[i + 1]?.id ?? (store.get(repeatAtom) === 'all' ? q[0]?.id : undefined)
+  clearTimeout(preloadTimer)
+  if (nextId) preloadTimer = setTimeout(() => window.zsound.preload(nextId), 2500)
 }
 
 function fillAutoplay(): Promise<number> {
@@ -72,6 +77,7 @@ function loadCurrent({ startAt = 0, fresh = true } = {}) {
   updateMediaSession(t)
   prefetchAhead()
   if (fresh) {
+    recovered = null
     store.set(pushRecentAtom, t)
     if (store.get(queueIndexAtom) >= store.get(queueAtom).length - 2) void fillAutoplay()
   }
@@ -101,12 +107,26 @@ async function onEnded() {
   store.set(isPlayingAtom, false)
 }
 
+let recovered: string | null = null
+
 function onError() {
   if (!audio.currentSrc.startsWith('zsa:') || !loadedId) return
+  // First failure on a track: reload it silently where it was (fresh link, ZS Buffer refills).
+  if (recovered !== loadedId) {
+    recovered = loadedId
+    loadCurrent({ startAt: audio.currentTime, fresh: false })
+    return
+  }
+  // Never skip or resume on our own while the user has paused.
+  if (!store.get(isPlayingAtom)) return
   const t = store.get(currentTrackAtom)
   store.set(showToastAtom, tr('toast.cantPlay', { t: t?.title ?? '' }))
   store.set(isBufferingAtom, false)
-  setTimeout(() => { if (!store.set(nextAtom)) store.set(isPlayingAtom, false) }, 800)
+  const failed = loadedId
+  setTimeout(() => {
+    if (!store.get(isPlayingAtom) || loadedId !== failed) return
+    if (!store.set(nextAtom)) store.set(isPlayingAtom, false)
+  }, 800)
 }
 
 function onKey(e: KeyboardEvent) {
@@ -131,13 +151,14 @@ export function startController() {
   started = true
 
   engine.applySettings(store.get(settingsAtom))
+  engine.prepare()
   engine.setVolume(store.get(volumeAtom), store.get(mutedAtom))
   window.zsound.setLang(store.get(langAtom))
   store.sub(langAtom, () => window.zsound.setLang(store.get(langAtom)))
 
   store.sub(playTokenAtom, () => loadCurrent())
   store.sub(isPlayingAtom, () => {
-    if (!store.get(isPlayingAtom)) return audio.pause()
+    if (!store.get(isPlayingAtom)) return engine.pause()
     if (!loadedId) loadCurrent()
     else playSafe()
   })

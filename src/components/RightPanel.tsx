@@ -37,7 +37,7 @@ function QueuePanel() {
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-[11px] font-semibold text-zs-muted uppercase tracking-widest">{t('queue.nextUp', { n: upcoming.length })}</h3>
           {upcoming.length > 0 && (
-            <button type="button" onClick={() => clear()} className="text-xs text-zs-muted hover:text-zs-text">{t('queue.clear')}</button>
+            <button type="button" onClick={() => clear()} className="text-xs text-zs-muted hover:text-zs-accent-light">{t('queue.clear')}</button>
           )}
         </div>
         {upcoming.length === 0 && <p className="text-xs text-zs-muted px-1">{t(autoplay ? 'queue.autoplayHint' : 'queue.empty')}</p>}
@@ -54,7 +54,7 @@ function QueuePanel() {
               >
                 <Cover src={tr.thumbnail} size={96} className="w-10 h-10" rounded="rounded-lg" />
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm text-zs-text truncate">{tr.title}</div>
+                  <div className="text-sm text-zs-text truncate hl">{tr.title}</div>
                   <div className="text-xs text-zs-muted truncate">{tr.artist}</div>
                 </div>
                 <IconBtn title={t('queue.remove')} onClick={(e) => { e.stopPropagation(); remove(pos) }} className="w-7 h-7 opacity-0 group-hover:opacity-100">

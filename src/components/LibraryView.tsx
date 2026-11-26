@@ -26,9 +26,9 @@ export default function LibraryView() {
           <div className="text-sm text-white/75">{t('lib.songs', { n: liked.length })}</div>
         </button>
         {playlists.map((p) => (
-          <button key={p.id} type="button" onClick={() => navigate({ kind: 'playlist', id: p.id })} className="card lift p-2.5 rounded-2xl text-left">
+          <button key={p.id} type="button" onClick={() => navigate({ kind: 'playlist', id: p.id })} className="card lift group p-2.5 rounded-2xl text-left">
             <Cover src={p.tracks[0]?.thumbnail} size={320} className="w-full aspect-square mb-2" rounded="rounded-xl" />
-            <div className="text-sm text-zs-text truncate">{p.name}</div>
+            <div className="text-sm text-zs-text truncate hl">{p.name}</div>
             <div className="text-xs text-zs-muted">{t('lib.songs', { n: p.tracks.length })}</div>
           </button>
         ))}
