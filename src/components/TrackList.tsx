@@ -3,17 +3,21 @@ import { Heart, Ellipsis, Play, AudioLines } from 'lucide-react'
 import {
   playContextAtom, currentTrackAtom, isPlayingAtom, likedIdsAtom, toggleLikeAtom, navigateAtom,
 } from '../store/player'
-import { Cover, formatTime, useOpenMenu } from './ui'
+import { Cover, formatTime, useOpenMenu, ArtistLink } from './ui'
 import { useT } from '../i18n'
 import type { Track } from '../types'
 
 interface Props {
   tracks: Track[]
+  /** Shown in the queue as "Next from …" when a row is played in order. */
+  contextName?: string
+  /** Overrides playing the list in order (search plays a ZS mix instead). */
+  onPlay?: (index: number) => void
   playlistId?: string
   showAlbum?: boolean
 }
 
-export default function TrackList({ tracks, playlistId, showAlbum = true }: Props) {
+export default function TrackList({ tracks, contextName = '', onPlay, playlistId, showAlbum = true }: Props) {
   const playContext = useSetAtom(playContextAtom)
   const current = useAtomValue(currentTrackAtom)
   const isPlaying = useAtomValue(isPlayingAtom)
@@ -33,7 +37,7 @@ export default function TrackList({ tracks, playlistId, showAlbum = true }: Prop
           <div
             key={`${tr.id}-${i}`}
             className={`track-row group grid ${cols} items-center gap-3 px-3 py-1.5 cursor-pointer ${active ? 'active' : ''}`}
-            onClick={() => playContext({ tracks, index: i })}
+            onClick={() => (onPlay ? onPlay(i) : playContext({ tracks, index: i, name: contextName }))}
             onMouseEnter={() => window.zsound.prefetch(tr.id)}
             onContextMenu={(e) => openMenu(e, tr, { playlistId, index: i })}
           >
@@ -46,7 +50,7 @@ export default function TrackList({ tracks, playlistId, showAlbum = true }: Prop
               <Cover src={tr.thumbnail} size={96} className="w-10 h-10" rounded="rounded-lg" />
               <div className="min-w-0">
                 <div className={`text-[14px] truncate ${active ? 'text-zs-accent-light font-medium' : 'text-zs-text hl'}`}>{tr.title}</div>
-                <div className="text-xs text-zs-muted truncate">{tr.artist}</div>
+                <ArtistLink track={tr} />
               </div>
             </div>
             {showAlbum && (

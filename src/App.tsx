@@ -7,6 +7,7 @@ import SearchView from './components/SearchView'
 import LibraryView from './components/LibraryView'
 import SettingsView from './components/SettingsView'
 import { CollectionView, LikedView, PlaylistView } from './components/CollectionViews'
+import ArtistView from './components/ArtistView'
 import RightPanel from './components/RightPanel'
 import Player from './components/Player'
 import ContextMenu from './components/ContextMenu'
@@ -23,6 +24,7 @@ function Main() {
     case 'settings': return <SettingsView />
     case 'playlist': return <PlaylistView id={view.id} />
     case 'collection': return <CollectionView key={view.id} id={view.id} />
+    case 'artist': return <ArtistView key={view.id} id={view.id} />
   }
 }
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useSetAtom } from 'jotai'
 import { AudioLines } from 'lucide-react'
-import { contextMenuAtom } from '../store/player'
+import { contextMenuAtom, navigateAtom } from '../store/player'
 import type { Track } from '../types'
 
 export function formatTime(s: number) {
@@ -61,6 +61,23 @@ export function useOpenMenu() {
     e.stopPropagation()
     set({ x: e.clientX, y: e.clientY, track, ...extra })
   }
+}
+
+/** Artist name that opens the artist page when we know their id. */
+export function ArtistLink({ track, className = 'text-xs text-zs-muted truncate' }: { track: Track; className?: string }) {
+  const navigate = useSetAtom(navigateAtom)
+  if (!track.artistId) return <div className={className}>{track.artist}</div>
+  const open = (e: React.SyntheticEvent) => {
+    e.stopPropagation()
+    navigate({ kind: 'artist', id: track.artistId! })
+  }
+  return (
+    <div className={className}>
+      <span role="link" tabIndex={0} onClick={open} onKeyDown={(e) => { if (e.key === 'Enter') open(e) }} className="cursor-pointer hover:text-zs-accent-light hover:underline">
+        {track.artist}
+      </span>
+    </div>
+  )
 }
 
 export function Skeleton({ className = '' }: { className?: string }) {

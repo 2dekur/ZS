@@ -1,6 +1,6 @@
 {
   "name": "zsound",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Zsound — the music player that doesn't flinch",
   "author": "2dekur",
   "repository": "github:2dekur/ZS",
@@ -15,6 +15,7 @@
     "check:api": "node --no-warnings scripts/check-api.ts",
     "check:engine": "node --no-warnings scripts/check-engine.ts",
     "check:quality": "node --no-warnings scripts/check-quality.ts",
+    "check:algo": "node --no-warnings scripts/check-algo.ts",
     "release": "pnpm build && electron-builder --win --x64 --publish always"
   },
   "build": {
@@ -36,6 +37,10 @@
       {
         "from": "resources/bin/ytdlp",
         "to": "bin/ytdlp"
+      },
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
       }
     ],
     "directories": {

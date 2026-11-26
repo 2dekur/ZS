@@ -5,10 +5,22 @@ export interface Track {
   id: string
   title: string
   artist: string
+  artistId?: string
   album: string
   albumId?: string
   duration: number
   thumbnail: string
+}
+
+export interface ArtistPage {
+  id: string
+  name: string
+  subtitle: string
+  thumbnail: string
+  radio: { videoId: string; playlistId: string } | null
+  topSongs: Track[]
+  topSongsPlaylist?: string
+  shelves: Shelf[]
 }
 
 export interface Collection {
@@ -99,7 +111,7 @@ export function hiRes(thumbs: any[] | undefined): string {
   return url.replace(/=w\d+-h\d+/, '=w544-h544')
 }
 
-interface Fallback { thumbnail?: string; artist?: string; album?: string; albumId?: string }
+interface Fallback { thumbnail?: string; artist?: string; artistId?: string; album?: string; albumId?: string }
 
 function parseListItem(it: any, fb: Fallback = {}): Track | null {
   const id = it?.playlistItemData?.videoId
@@ -108,7 +120,8 @@ function parseListItem(it: any, fb: Fallback = {}): Track | null {
   const cols: any[] = (it.flexColumns ?? []).map((c: any) => c.musicResponsiveListItemFlexColumnRenderer?.text)
   const meta: any[] = cols.slice(1).flatMap(runs)
   const fixed = runs(it.fixedColumns?.[0]?.musicResponsiveListItemFixedColumnRenderer?.text)
-  const artists = meta.filter((r) => pageType(r) === 'MUSIC_PAGE_TYPE_ARTIST').map((r) => r.text)
+  const artistRuns = meta.filter((r) => pageType(r) === 'MUSIC_PAGE_TYPE_ARTIST')
+  const artists = artistRuns.map((r) => r.text)
   const firstMeta = runs(cols[1]).find((r) => !isSeparator(r.text) && !DURATION.test(r.text))?.text
   const albumRun = meta.find((r) => pageType(r) === 'MUSIC_PAGE_TYPE_ALBUM')
   const dur = [...meta, ...fixed].map((r) => r.text).find((t) => DURATION.test(t))
@@ -116,6 +129,7 @@ function parseListItem(it: any, fb: Fallback = {}): Track | null {
     id,
     title: text(cols[0]) || 'Unknown',
     artist: artists.length ? artists.join(', ') : firstMeta ?? fb.artist ?? 'Unknown',
+    artistId: browseId(artistRuns[0]) ?? fb.artistId,
     album: albumRun?.text ?? fb.album ?? '',
     albumId: browseId(albumRun) ?? fb.albumId,
     duration: parseDuration(dur),
@@ -126,12 +140,14 @@ function parseListItem(it: any, fb: Fallback = {}): Track | null {
 function parsePanelItem(v: any): Track | null {
   if (!v?.videoId) return null
   const by = runs(v.longBylineText)
-  const artists = by.filter((r) => pageType(r) === 'MUSIC_PAGE_TYPE_ARTIST').map((r) => r.text)
+  const artistRuns = by.filter((r) => pageType(r) === 'MUSIC_PAGE_TYPE_ARTIST')
+  const artists = artistRuns.map((r) => r.text)
   const albumRun = by.find((r) => pageType(r) === 'MUSIC_PAGE_TYPE_ALBUM')
   return {
     id: v.videoId,
     title: text(v.title) || 'Unknown',
     artist: artists.length ? artists.join(', ') : by[0]?.text ?? 'Unknown',
+    artistId: browseId(artistRuns[0]),
     album: albumRun?.text ?? '',
     albumId: browseId(albumRun),
     duration: parseDuration(text(v.lengthText)),
@@ -168,13 +184,14 @@ export function suggestions(input: string): Promise<string[]> {
 }
 
 const nextCache = cached<any>(10 * 60_000)
-const watchNext = (videoId: string) =>
-  nextCache(videoId, () => call('next', { videoId, playlistId: `RDAMVM${videoId}`, isAudioOnly: true }))
+const watchNext = (videoId: string, playlistId = `RDAMVM${videoId}`) =>
+  nextCache(`${videoId}:${playlistId}`, () => call('next', { videoId, playlistId, isAudioOnly: true }))
 const nextTabs = (j: any): any[] =>
   j.contents?.singleColumnMusicWatchNextResultsRenderer?.tabbedRenderer?.watchNextTabbedResultsRenderer?.tabs ?? []
 
-export async function radio(videoId: string): Promise<Track[]> {
-  const j = await watchNext(videoId)
+// Track radio by default; pass an artist radio playlist (RDEM…) for artist radio.
+export async function radio(videoId: string, playlistId?: string): Promise<Track[]> {
+  const j = await watchNext(videoId, playlistId)
   const items = nextTabs(j)[0]?.tabRenderer?.content?.musicQueueRenderer?.content?.playlistPanelRenderer?.contents ?? []
   return items.map((c: any) => parsePanelItem(c.playlistPanelVideoRenderer)).filter(notNull).filter((t: Track) => t.id !== videoId)
 }
@@ -211,13 +228,16 @@ function parseShelf(c: any): Shelf | null {
     const videoId = r.navigationEndpoint?.watchEndpoint?.videoId
     const sub = runs(r.subtitle)
     if (videoId) {
-      const artists = sub.filter((x) => pageType(x) === 'MUSIC_PAGE_TYPE_ARTIST').map((x) => x.text)
-      tracks.push({ id: videoId, title: text(r.title), artist: artists.join(', ') || text(r.subtitle), album: '', duration: 0, thumbnail })
+      const artistRuns = sub.filter((x) => pageType(x) === 'MUSIC_PAGE_TYPE_ARTIST')
+      tracks.push({
+        id: videoId, title: text(r.title), artist: artistRuns.map((x) => x.text).join(', ') || text(r.subtitle),
+        artistId: browseId(artistRuns[0]), album: '', duration: 0, thumbnail,
+      })
       continue
     }
     const id = browseId(r)
-    // shortcut: artist pages (UC…) are skipped, only playlists (VL…) and albums (MPRE…) open
-    if (id && (id.startsWith('VL') || id.startsWith('MPRE'))) {
+    // Playlists (VL…), albums (MPRE…) and artists (UC…) open in the app.
+    if (id && (id.startsWith('VL') || id.startsWith('MPRE') || id.startsWith('UC'))) {
       collections.push({ id, title: text(r.title), subtitle: text(r.subtitle), thumbnail })
     }
   }
@@ -242,23 +262,59 @@ export function home(): Promise<Shelf[]> {
 }
 
 const collectionCache = cached<CollectionPage>(30 * 60_000, 100)
-export function collection(id: string): Promise<CollectionPage> {
-  return collectionCache(id, async () => {
+// `pages` extra continuation pages (~100 tracks each): 0 for an instant first screen, 9 for the full list.
+export function collection(id: string, pages = 9): Promise<CollectionPage> {
+  return collectionCache(`${id}:${pages}`, async () => {
     const j = await call('browse', { browseId: id })
     const two = j.contents?.twoColumnBrowseResultsRenderer
     const head = two?.tabs?.[0]?.tabRenderer?.content?.sectionListRenderer?.contents?.[0]?.musicResponsiveHeaderRenderer
     const title = text(head?.title)
     const artist = text(head?.straplineTextOne)
+    const artistId = browseId(runs(head?.straplineTextOne)[0])
     const thumbnail = hiRes(head?.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails)
     const shelf = two?.secondaryContents?.sectionListRenderer?.contents?.[0]
-    const items = (shelf?.musicShelfRenderer ?? shelf?.musicPlaylistShelfRenderer)?.contents ?? []
+    const items: any[] = [...((shelf?.musicShelfRenderer ?? shelf?.musicPlaylistShelfRenderer)?.contents ?? [])]
+    // Long playlists come in pages of ~100: follow continuations up to 1000 tracks.
+    for (let page = 0; page < pages && items.length < 1000; page++) {
+      const token = items.at(-1)?.continuationItemRenderer?.continuationEndpoint?.continuationCommand?.token
+      if (!token) break
+      items.pop()
+      const more = await call('browse', { continuation: token }).catch(() => null)
+      items.push(...(more?.onResponseReceivedActions?.[0]?.appendContinuationItemsAction?.continuationItems ?? []))
+    }
     const isAlbum = id.startsWith('MPRE')
-    // shortcut: playlists load their first page (~100 tracks), add continuation paging if users need longer ones
     const tracks = items
       .map((c: any) => parseListItem(c.musicResponsiveListItemRenderer, {
-        thumbnail, artist: artist || undefined, album: isAlbum ? title : undefined, albumId: isAlbum ? id : undefined,
+        thumbnail, artist: artist || undefined, artistId, album: isAlbum ? title : undefined, albumId: isAlbum ? id : undefined,
       }))
       .filter(notNull)
     return { id, title, subtitle: [artist, text(head?.subtitle)].filter(Boolean).join(' • '), thumbnail, tracks }
+  })
+}
+
+const artistCache = cached<ArtistPage>(30 * 60_000, 50)
+export function artist(id: string): Promise<ArtistPage> {
+  return artistCache(`${client.hl}:${id}`, async () => {
+    const j = await call('browse', { browseId: id })
+    const head = j.header?.musicImmersiveHeaderRenderer ?? j.header?.musicVisualHeaderRenderer
+    const name = text(head?.title)
+    const thumbnail = hiRes(head?.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails)
+    const watch = head?.startRadioButton?.buttonRenderer?.navigationEndpoint?.watchEndpoint
+    const sections: any[] = j.contents?.singleColumnBrowseResultsRenderer?.tabs?.[0]?.tabRenderer?.content?.sectionListRenderer?.contents ?? []
+    const songs = sections.find((s) => s.musicShelfRenderer)?.musicShelfRenderer
+    const topSongs = (songs?.contents ?? [])
+      .map((c: any) => parseListItem(c.musicResponsiveListItemRenderer, { artist: name, artistId: id }))
+      .filter(notNull)
+    const morePlaylist = songs?.bottomEndpoint?.browseEndpoint?.browseId ?? browseId(runs(songs?.title)[0])
+    return {
+      id,
+      name,
+      subtitle: text(head?.subscriptionButton?.subscribeButtonRenderer?.subscriberCountText),
+      thumbnail,
+      radio: watch?.videoId && watch?.playlistId ? { videoId: watch.videoId, playlistId: watch.playlistId } : null,
+      topSongs,
+      topSongsPlaylist: morePlaylist?.startsWith('VL') ? morePlaylist : undefined,
+      shelves: sections.map((s) => parseShelf(s.musicCarouselShelfRenderer)).filter(notNull),
+    }
   })
 }

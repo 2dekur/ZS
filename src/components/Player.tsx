@@ -2,41 +2,35 @@ import { useEffect, useRef, useState } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1, Heart, Volume2, Volume1, VolumeX,
-  ListMusic, MicVocal, LoaderCircle, Sparkles,
+  ListMusic, MicVocal, LoaderCircle, Sparkles, PictureInPicture2,
 } from 'lucide-react'
 import {
   currentTrackAtom, isPlayingAtom, isBufferingAtom, volumeAtom, mutedAtom, shuffleAtom, repeatAtom,
   toggleShuffleAtom, cycleRepeatAtom, likedIdsAtom, toggleLikeAtom, panelAtom, streamMetaAtom, navigateAtom,
 } from '../store/player'
-import { audio } from '../audio/engine'
+import { events, current } from '../audio/engine'
 import { next, previous, seek } from '../audio/controller'
-import { Cover, IconBtn, formatTime, useOpenMenu } from './ui'
+import { Cover, IconBtn, formatTime, useOpenMenu, ArtistLink } from './ui'
 import { useT } from '../i18n'
 
 function Seekbar() {
-  const [time, setTime] = useState(audio.currentTime)
-  const [duration, setDuration] = useState(audio.duration || 0)
+  const [time, setTime] = useState(current().currentTime)
+  const [duration, setDuration] = useState(current().duration || 0)
   const [buffered, setBuffered] = useState(0)
   const [drag, setDrag] = useState<number | null>(null)
   const barRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const onTime = () => {
-      setTime(audio.currentTime)
-      if (audio.buffered.length) setBuffered(audio.buffered.end(audio.buffered.length - 1))
+      const a = current()
+      setTime(a.currentTime)
+      setBuffered(a.buffered.length ? a.buffered.end(a.buffered.length - 1) : 0)
     }
-    const onDur = () => setDuration(Number.isFinite(audio.duration) ? audio.duration : 0)
+    const onDur = () => setDuration(Number.isFinite(current().duration) ? current().duration : 0)
     const onEmpty = () => { setTime(0); setBuffered(0) }
-    audio.addEventListener('timeupdate', onTime)
-    audio.addEventListener('progress', onTime)
-    audio.addEventListener('durationchange', onDur)
-    audio.addEventListener('emptied', onEmpty)
-    return () => {
-      audio.removeEventListener('timeupdate', onTime)
-      audio.removeEventListener('progress', onTime)
-      audio.removeEventListener('durationchange', onDur)
-      audio.removeEventListener('emptied', onEmpty)
-    }
+    const subs: [string, () => void][] = [['timeupdate', onTime], ['progress', onTime], ['durationchange', onDur], ['emptied', onEmpty]]
+    for (const [type, fn] of subs) events.addEventListener(type, fn)
+    return () => { for (const [type, fn] of subs) events.removeEventListener(type, fn) }
   }, [])
 
   const pctAt = (clientX: number) => {
@@ -120,7 +114,7 @@ export default function Player() {
               >
                 {track.title}
               </div>
-              <div className="text-xs text-zs-muted truncate">{track.artist}</div>
+              <ArtistLink track={track} />
               <QualityLabel />
             </div>
             <IconBtn title={t(liked ? 'menu.unlike' : 'menu.like')} active={liked} onClick={() => toggleLike(track)} className="w-8 h-8 flex-shrink-0">
@@ -163,6 +157,9 @@ export default function Player() {
       <div className="flex items-center justify-end gap-2 min-w-0">
         <IconBtn title={t('player.lyrics')} active={panel === 'lyrics'} onClick={() => setPanel(panel === 'lyrics' ? 'none' : 'lyrics')} className="w-8 h-8">
           <MicVocal className="w-4 h-4" />
+        </IconBtn>
+        <IconBtn title={t('player.mini')} onClick={() => window.zsound.toggleMini()} className="w-8 h-8">
+          <PictureInPicture2 className="w-4 h-4" />
         </IconBtn>
         <IconBtn title={t('player.queue')} active={panel === 'queue'} onClick={() => setPanel(panel === 'queue' ? 'none' : 'queue')} className="w-8 h-8">
           <ListMusic className="w-4 h-4" />

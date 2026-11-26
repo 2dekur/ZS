@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, useLayoutEffect } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { ListStart, ListEnd, Radio, Heart, ListPlus, Disc3, Trash, Plus, ChevronLeft } from 'lucide-react'
+import { ListStart, ListEnd, Radio, Heart, ListPlus, Disc3, Trash, Plus, ChevronLeft, UserRound } from 'lucide-react'
 import {
   contextMenuAtom, playNextAtom, addToQueueAtom, likedIdsAtom, toggleLikeAtom, playlistsAtom,
-  addToPlaylistAtom, createPlaylistAtom, removeFromPlaylistAtom, navigateAtom, playContextAtom, showToastAtom,
+  addToPlaylistAtom, createPlaylistAtom, removeFromPlaylistAtom, navigateAtom, playMixAtom, showToastAtom,
 } from '../store/player'
 import { useT } from '../i18n'
 
@@ -30,7 +30,7 @@ export default function ContextMenu() {
   const createPlaylist = useSetAtom(createPlaylistAtom)
   const removeFromPlaylist = useSetAtom(removeFromPlaylistAtom)
   const navigate = useSetAtom(navigateAtom)
-  const playContext = useSetAtom(playContextAtom)
+  const playMix = useSetAtom(playMixAtom)
   const toast = useSetAtom(showToastAtom)
   const t = useT()
 
@@ -97,15 +97,16 @@ export default function ContextMenu() {
           <Item icon={<ListEnd className="w-4 h-4" />} label={t('menu.addQueue')} onClick={done(() => addToQueue(track))} />
           <Item icon={<Radio className="w-4 h-4" />} label={t('menu.radio')} onClick={done(() => {
             toast(t('toast.radio', { t: track.title }))
-            window.zsound.radio(track.id)
-              .then((r) => playContext({ tracks: [track, ...r], index: 0 }))
-              .catch(() => toast(t('toast.radioFail')))
+            playMix(track)
           })} />
           <div className="h-px bg-white/10 my-1" />
           <Item icon={<Heart className="w-4 h-4" fill={liked ? 'currentColor' : 'none'} />} label={t(liked ? 'menu.unlike' : 'menu.like')} onClick={done(() => toggleLike(track))} />
           <Item icon={<ListPlus className="w-4 h-4" />} label={t('menu.addPlaylist')} onClick={() => setPickPlaylist(true)} />
           {playlistId && index != null && (
             <Item icon={<Trash className="w-4 h-4" />} label={t('menu.removePlaylist')} onClick={done(() => removeFromPlaylist({ id: playlistId, index }))} />
+          )}
+          {track.artistId && (
+            <Item icon={<UserRound className="w-4 h-4" />} label={t('menu.artist')} onClick={done(() => navigate({ kind: 'artist', id: track.artistId! }))} />
           )}
           {track.albumId && (
             <Item icon={<Disc3 className="w-4 h-4" />} label={t('menu.album')} onClick={done(() => navigate({ kind: 'collection', id: track.albumId! }))} />

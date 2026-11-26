@@ -24,10 +24,21 @@
   ::selection { background: rgba(42, 91, 240, 0.45); }
 
   .app-root {
+    position: relative;
+    isolation: isolate;
     background:
       radial-gradient(1100px 620px at 8% -12%, rgba(42, 91, 240, 0.16), transparent 62%),
       radial-gradient(900px 560px at 108% 112%, rgba(30, 58, 138, 0.18), transparent 60%),
       var(--zs-bg);
+  }
+  /* Dynamic colour: a soft wash of the current cover's colour over the ZS blue base (one repaint per track). */
+  .app-root::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: radial-gradient(900px 520px at 70% -8%, rgb(var(--dyn, 42 91 240) / 0.22), transparent 65%);
   }
 }
 

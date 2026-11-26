@@ -1,8 +1,10 @@
-- ZS Buffer : les titres sont gardés en mémoire, lecture, avance et titre suivant sans attendre le réseau
-- ZS Quality boostée : titre entier préchargé, spectre complet 20 kHz, compensation de loudness selon ton volume
-- Nouveau logo écrit "Zsound" dans le style du ruban ZS
-- Survol en bleu ZS sur les menus, titres et boutons
-- Réglages qualité affichés en kbit/s et Go/heure
-- Recherche : la première suggestion est préparée à l'avance
-- CPU pendant la lecture divisé par 7 (5 % au lieu de ~38 %), presque rien en pause
-- Correctif : après une pause, la lecture ne repart plus toute seule sur un autre titre
+- Nouvel algorithme ZS : mélange plusieurs radios, tient compte de tes likes et des titres que tu passes, évite les doublons et varie les artistes
+- Réglage « Recommandations » : Fidèle à ton style, Équilibré ou Découverte
+- Vraie file d'attente : « Ta file d'attente » passe juste après le titre en cours, séparée de « À suivre depuis… »
+- Cliquer un titre (recherche, accueil) lance un mix ZS autour de lui au lieu de la suite de la liste
+- Pages artiste : titres populaires, albums, singles, artistes similaires, radio de l'artiste
+- Fondu enchaîné réglable (0 à 12 s) et enchaînement sans blanc
+- Paroles synchronisées : la ligne en cours s'allume, clique une ligne pour y aller
+- Import de playlists et albums Spotify, Deezer et YouTube par lien
+- Couleur dynamique selon la pochette, mini-lecteur, icône dans la barre des tâches, Ctrl+K pour rechercher
+- Playlists longues (jusqu'à 1000 titres), mémoire des réglages plus fiable

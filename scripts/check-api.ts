@@ -45,4 +45,33 @@ if (first.albumId) {
   const album = await timed('album', () => ytm.collection(first.albumId!))
   assert.ok(album.tracks.length > 0 && album.tracks[0].artist !== 'Unknown')
 }
+const artistPage = await timed('artist', () => ytm.artist('UCAsCxvWP4tEy25BxuruK87Q'))
+assert.ok(artistPage.name && artistPage.topSongs.length > 0 && artistPage.shelves.length > 0)
+assert.ok(artistPage.topSongs.every((t) => t.artistId))
+console.log('  ->', artistPage.name, '|', artistPage.subtitle, '|', artistPage.topSongs.length, 'top |', artistPage.shelves.map((s) => s.title).join(', '))
+assert.ok(results.some((t) => t.artistId?.startsWith('UC')), 'search results carry artist ids')
+
+const long = await timed('long list', () => ytm.collection('VLRDCLAK5uy_lMzHW51iFg1Kx0d_2EHpzbOgCrwtu8cgI'))
+assert.ok(long.tracks.length > 101, `paging past the first page (${long.tracks.length})`)
+console.log('  ->', long.tracks.length, 'tracks')
+
+// Sibling imports are extensionless (Vite style): let Node find the .ts for the modules below.
+const { registerHooks } = await import('node:module')
+registerHooks({
+  resolve(spec, ctx, next) {
+    if (/^\.\.?\//.test(spec) && !/\.\w+$/.test(spec)) {
+      try { return next(`${spec}.ts`, ctx) } catch { /* fall through */ }
+    }
+    return next(spec, ctx)
+  },
+})
+const { importLink } = await import('../electron/importer.ts')
+const imported = await timed('import', () => importLink('https://open.spotify.com/album/4m2880jivSbbyEGAKfITCa', () => {}))
+assert.ok(imported.tracks.length >= 10, `spotify album matched (${imported.tracks.length}/13)`)
+console.log('  ->', imported.name, '|', imported.tracks.length, 'matched,', imported.missed.length, 'missed')
+
+const { syncedLyrics } = await import('../electron/lrclib.ts')
+const synced = await timed('lrclib', () => syncedLyrics('dQw4w9WgXcQ', { title: 'Never Gonna Give You Up', artist: 'Rick Astley', duration: 213 }))
+assert.ok(synced && synced.length > 10)
+
 console.log('API OK')

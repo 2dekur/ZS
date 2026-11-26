@@ -1,19 +1,23 @@
 import { getDefaultStore } from 'jotai'
 import * as engine from './engine'
+import { buildMix, pickSeeds, primaryArtist, type Profile } from './algo'
 import {
   currentTrackAtom, isPlayingAtom, isBufferingAtom, streamMetaAtom, playTokenAtom, settingsAtom,
-  volumeAtom, mutedAtom, repeatAtom, queueAtom, queueIndexAtom, nextAtom, prevAtom,
-  appendAutoplayAtom, pushRecentAtom, showToastAtom,
+  volumeAtom, mutedAtom, repeatAtom, nextAtom, prevAtom, appendContextAtom, pushRecentAtom, showToastAtom,
+  contextAtom, upcomingAtom, likedAtom, recentAtom, skipsAtom, recordSkipAtom, navigateAtom,
 } from '../store/player'
 import { langAtom, tr } from '../i18n'
 import type { Track } from '../types'
 
 const store = getDefaultStore()
-const { audio } = engine
+const el = () => engine.current()
+const settings = () => store.get(settingsAtom)
 
 let loadedId: string | null = null
 let loadedQuality: string | null = null
-let autoplayFor: string | null = null
+let recovered: string | null = null
+let mixing: string | null = null
+let handoffSeconds: number | null = null
 let preloadTimer: ReturnType<typeof setTimeout> | undefined
 
 function playSafe() {
@@ -22,27 +26,57 @@ function playSafe() {
   })
 }
 
-function prefetchAhead() {
-  const q = store.get(queueAtom)
-  const i = store.get(queueIndexAtom)
-  for (const t of q.slice(i + 1, i + 4)) window.zsound.prefetch(t.id)
-  // Load the whole next track once the current one has a head start, so skipping is instant.
-  const nextId = q[i + 1]?.id ?? (store.get(repeatAtom) === 'all' ? q[0]?.id : undefined)
-  clearTimeout(preloadTimer)
-  if (nextId) preloadTimer = setTimeout(() => window.zsound.preload(nextId), 2500)
+function nextTrack(): Track | undefined {
+  const up = store.get(upcomingAtom)[0]
+  return up ?? (store.get(repeatAtom) === 'all' ? store.get(contextAtom).tracks[0] : undefined)
 }
 
-function fillAutoplay(): Promise<number> {
+function profile(): Profile {
+  const liked = store.get(likedAtom)
+  const recent = store.get(recentAtom)
+  const skips = store.get(skipsAtom)
+  return {
+    likedArtists: new Set(liked.map(primaryArtist)),
+    knownArtists: new Set([...liked, ...recent].map(primaryArtist)),
+    recentIds: new Set(recent.slice(0, 30).map((t) => t.id)),
+    skippedTracks: skips.tracks,
+    skippedArtists: skips.artists,
+  }
+}
+
+/** ZS mix around a track: blends its radio with radios from your likes/recents, ranked by the ZS algorithm. */
+export async function buildMixFor(seed: Track, limit = 30): Promise<Track[]> {
+  const mode = settings().algoMode ?? 'balanced'
+  const seeds = pickSeeds(seed, store.get(likedAtom), store.get(recentAtom), mode)
+  const radios = await Promise.all([seed, ...seeds].map((s) => window.zsound.radio(s.id).catch(() => [] as Track[])))
+  return buildMix(seed, radios, profile(), mode, limit)
+}
+
+// Keeps ZS mixes growing and, with autoplay, continues any list when it runs out.
+function topUp(): Promise<number> {
+  const c = store.get(contextAtom)
   const cur = store.get(currentTrackAtom)
-  if (!cur || !store.get(settingsAtom).autoplay || autoplayFor === cur.id) return Promise.resolve(0)
-  autoplayFor = cur.id
-  return window.zsound.radio(cur.id)
+  if (!cur || c.tracks.length - 1 - c.index >= 3) return Promise.resolve(0)
+  if (!c.mixSeed && !settings().autoplay) return Promise.resolve(0)
+  const key = `${c.name}:${cur.id}`
+  if (mixing === key) return Promise.resolve(0)
+  mixing = key
+  return buildMixFor(cur)
     .then((tracks) => {
-      const added = store.set(appendAutoplayAtom, tracks.slice(0, 25))
+      const added = store.set(appendContextAtom, tracks)
       prefetchAhead()
       return added
     })
-    .catch(() => { autoplayFor = null; return 0 })
+    .catch(() => 0)
+    .finally(() => { if (mixing === key) mixing = null })
+}
+
+function prefetchAhead() {
+  for (const t of store.get(upcomingAtom).slice(0, 3)) window.zsound.prefetch(t.id)
+  // Load the whole next track once the current one has a head start, so skipping is instant.
+  const nxt = nextTrack()
+  clearTimeout(preloadTimer)
+  if (nxt) preloadTimer = setTimeout(() => window.zsound.preload(nxt.id), 2500)
 }
 
 function updateMediaSession(t: Track) {
@@ -55,66 +89,117 @@ function updateMediaSession(t: Track) {
   })
 }
 
+function broadcast() {
+  const t = store.get(currentTrackAtom)
+  const e = el()
+  window.zsound.nowPlaying(t ? {
+    title: t.title, artist: t.artist, thumbnail: t.thumbnail, playing: store.get(isPlayingAtom),
+    duration: Number.isFinite(e.duration) ? e.duration : t.duration, position: e.currentTime,
+  } : null)
+}
+
+function tintFromCover(t: Track) {
+  const root = document.documentElement
+  if (settings().dynamicColor === false || !t.thumbnail) return root.style.removeProperty('--dyn')
+  window.zsound.coverColor(t.thumbnail).then((rgb) => {
+    if (rgb && store.get(currentTrackAtom)?.id === t.id) root.style.setProperty('--dyn', rgb.join(' '))
+  })
+}
+
 function loadCurrent({ startAt = 0, fresh = true } = {}) {
   const t = store.get(currentTrackAtom)
+  const handoff = handoffSeconds
+  handoffSeconds = null
   if (!t) {
     loadedId = null
     engine.unload()
+    broadcast()
     return
   }
-  const quality = store.get(settingsAtom).quality
+  const quality = settings().quality
   loadedId = t.id
   loadedQuality = quality
-  store.set(isBufferingAtom, true)
   store.set(streamMetaAtom, null)
-  engine.load(t.id, quality, startAt)
-  if (store.get(isPlayingAtom)) playSafe()
+  if (handoff !== null && engine.armedId() === t.id && store.get(isPlayingAtom)) {
+    engine.handoff(handoff).catch(() => { engine.load(t.id, quality); playSafe() })
+  } else {
+    store.set(isBufferingAtom, true)
+    engine.load(t.id, quality, startAt)
+    if (store.get(isPlayingAtom)) playSafe()
+  }
   window.zsound.streamInfo(t.id, quality).then((m) => {
     if (loadedId !== t.id) return
     store.set(streamMetaAtom, m)
-    engine.setStreamMeta(m)
+    engine.setStreamMeta(t.id, m)
   })
   updateMediaSession(t)
+  tintFromCover(t)
+  broadcast()
   prefetchAhead()
   if (fresh) {
     recovered = null
     store.set(pushRecentAtom, t)
-    if (store.get(queueIndexAtom) >= store.get(queueAtom).length - 2) void fillAutoplay()
+    void topUp()
   }
 }
 
 export function previous() {
-  if (audio.currentTime > 3 || !store.set(prevAtom)) audio.currentTime = 0
+  if (el().currentTime > 3 || !store.set(prevAtom)) el().currentTime = 0
 }
 
 export function next() {
+  const cur = store.get(currentTrackAtom)
+  if (cur && el().currentTime < 30) store.set(recordSkipAtom, cur)
+  handoffSeconds = 0
   if (store.set(nextAtom)) return
-  void fillAutoplay().then((added) => { if (added) store.set(nextAtom) })
+  handoffSeconds = null
+  void topUp().then((added) => { if (added) store.set(nextAtom) })
 }
 
 export function seek(seconds: number) {
-  if (Number.isFinite(audio.duration)) audio.currentTime = Math.max(0, Math.min(audio.duration, seconds))
+  const e = el()
+  if (Number.isFinite(e.duration)) e.currentTime = Math.max(0, Math.min(e.duration, seconds))
 }
 
 async function onEnded() {
   if (store.get(repeatAtom) === 'one') {
-    audio.currentTime = 0
+    el().currentTime = 0
     playSafe()
     return
   }
+  handoffSeconds = 0
   if (store.set(nextAtom)) return
-  if ((await fillAutoplay()) && store.set(nextAtom)) return
+  handoffSeconds = null
+  if ((await topUp()) && store.set(nextAtom)) return
   store.set(isPlayingAtom, false)
 }
 
-let recovered: string | null = null
+// Arms the next track on the idle deck ~12 s before the end, then crossfades into it.
+function onTime() {
+  const e = el()
+  if (!Number.isFinite(e.duration) || !store.get(isPlayingAtom) || store.get(repeatAtom) === 'one') return
+  const left = e.duration - e.currentTime
+  const fade = Math.min(12, Math.max(0, settings().crossfade ?? 0))
+  const nxt = nextTrack()
+  if (!nxt || left > fade + 12) return
+  if (engine.armedId() !== nxt.id) {
+    const quality = settings().quality
+    engine.arm(nxt.id, quality)
+    window.zsound.streamInfo(nxt.id, quality).then((m) => engine.setStreamMeta(nxt.id, m))
+    return
+  }
+  if (fade > 0 && left <= fade && handoffSeconds === null && e.duration > fade * 2) {
+    handoffSeconds = fade
+    if (!store.set(nextAtom)) handoffSeconds = null
+  }
+}
 
 function onError() {
-  if (!audio.currentSrc.startsWith('zsa:') || !loadedId) return
+  if (!el().currentSrc.startsWith('zsa:') || !loadedId) return
   // First failure on a track: reload it silently where it was (fresh link, ZS Buffer refills).
   if (recovered !== loadedId) {
     recovered = loadedId
-    loadCurrent({ startAt: audio.currentTime, fresh: false })
+    loadCurrent({ startAt: el().currentTime, fresh: false })
     return
   }
   // Never skip or resume on our own while the user has paused.
@@ -129,28 +214,50 @@ function onError() {
   }, 800)
 }
 
+function focusSearch() {
+  store.set(navigateAtom, { kind: 'search' })
+  setTimeout(() => document.querySelector<HTMLInputElement>('main input[type=text]')?.focus(), 30)
+}
+
 function onKey(e: KeyboardEvent) {
-  const el = e.target as HTMLElement
-  if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable) return
   const ctrl = e.ctrlKey || e.metaKey
+  if (ctrl && e.key.toLowerCase() === 'k') {
+    e.preventDefault()
+    return focusSearch()
+  }
+  const target = e.target as HTMLElement
+  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
   if (e.code === 'Space') store.set(isPlayingAtom, (p) => !p)
   else if (ctrl && e.key === 'ArrowRight') next()
   else if (ctrl && e.key === 'ArrowLeft') previous()
   else if (ctrl && e.key === 'ArrowUp') store.set(volumeAtom, (v) => Math.min(1, v + 0.05))
   else if (ctrl && e.key === 'ArrowDown') store.set(volumeAtom, (v) => Math.max(0, v - 0.05))
-  else if (e.key === 'ArrowRight') seek(audio.currentTime + 5)
-  else if (e.key === 'ArrowLeft') seek(audio.currentTime - 5)
+  else if (e.key === 'ArrowRight') seek(el().currentTime + 5)
+  else if (e.key === 'ArrowLeft') seek(el().currentTime - 5)
   else if (e.key.toLowerCase() === 'm') store.set(mutedAtom, (m) => !m)
   else return
   e.preventDefault()
+}
+
+// 0.0.1/0.0.2 kept one flat queue: turn it into current track + context once.
+function migrateLegacyQueue() {
+  if (store.get(currentTrackAtom)) return
+  try {
+    const queue: Track[] = JSON.parse(window.zsound.storeGet('zs.queue') ?? localStorage.getItem('zs.queue') ?? '[]')
+    const index = Number(JSON.parse(window.zsound.storeGet('zs.queueIndex') ?? localStorage.getItem('zs.queueIndex') ?? '-1'))
+    if (!queue[index]) return
+    store.set(contextAtom, { name: '', tracks: queue, index })
+    store.set(currentTrackAtom, queue[index])
+  } catch { /* nothing to migrate */ }
 }
 
 let started = false
 export function startController() {
   if (started) return
   started = true
+  migrateLegacyQueue()
 
-  engine.applySettings(store.get(settingsAtom))
+  engine.applySettings(settings())
   engine.prepare()
   engine.setVolume(store.get(volumeAtom), store.get(mutedAtom))
   window.zsound.setLang(store.get(langAtom))
@@ -158,23 +265,29 @@ export function startController() {
 
   store.sub(playTokenAtom, () => loadCurrent())
   store.sub(isPlayingAtom, () => {
+    broadcast()
     if (!store.get(isPlayingAtom)) return engine.pause()
     if (!loadedId) loadCurrent()
     else playSafe()
   })
   store.sub(settingsAtom, () => {
-    const s = store.get(settingsAtom)
+    const s = settings()
     engine.applySettings(s)
-    if (loadedId && s.quality !== loadedQuality) loadCurrent({ startAt: audio.currentTime, fresh: false })
+    if (loadedId && s.quality !== loadedQuality) loadCurrent({ startAt: el().currentTime, fresh: false })
+    const t = store.get(currentTrackAtom)
+    if (t) tintFromCover(t)
   })
   const syncVolume = () => engine.setVolume(store.get(volumeAtom), store.get(mutedAtom))
   store.sub(volumeAtom, syncVolume)
   store.sub(mutedAtom, syncVolume)
+  store.sub(upcomingAtom, prefetchAhead)
 
-  audio.addEventListener('playing', () => store.set(isBufferingAtom, false))
-  audio.addEventListener('waiting', () => store.set(isBufferingAtom, true))
-  audio.addEventListener('ended', () => void onEnded())
-  audio.addEventListener('error', onError)
+  engine.events.addEventListener('playing', () => { store.set(isBufferingAtom, false); broadcast() })
+  engine.events.addEventListener('waiting', () => store.set(isBufferingAtom, true))
+  engine.events.addEventListener('durationchange', broadcast)
+  engine.events.addEventListener('timeupdate', onTime)
+  engine.events.addEventListener('ended', () => void onEnded())
+  engine.events.addEventListener('error', onError)
 
   if ('mediaSession' in navigator) {
     const ms = navigator.mediaSession
@@ -184,6 +297,11 @@ export function startController() {
     ms.setActionHandler('previoustrack', previous)
     ms.setActionHandler('seekto', (d) => { if (d.seekTime != null) seek(d.seekTime) })
   }
+  window.zsound.onCommand((cmd) => {
+    if (cmd === 'toggle') store.set(isPlayingAtom, (p) => !p)
+    else if (cmd === 'next') next()
+    else if (cmd === 'previous') previous()
+  })
   window.addEventListener('keydown', onKey)
 
   // Restore last session paused, already buffering so play is instant.

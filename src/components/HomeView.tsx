@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { recentAtom, playContextAtom, navigateAtom, homeCacheAtom } from '../store/player'
+import { recentAtom, playContextAtom, playMixAtom, homeCacheAtom, settingsAtom } from '../store/player'
+import { buildMixFor } from '../audio/controller'
 import { TrackCard, CollectionCard, Row } from './Cards'
 import { Cover, Skeleton } from './ui'
 import { useT, langAtom, type Key } from '../i18n'
@@ -19,10 +20,12 @@ export default function HomeView() {
   const [cache, setCache] = useAtom(homeCacheAtom)
   const [failed, setFailed] = useState(false)
   const recent = useAtomValue(recentAtom)
+  const mode = useAtomValue(settingsAtom).algoMode ?? 'balanced'
   const seed = recent[0]
-  const [mix, setMix] = useState<Track[]>(seed ? mixCache.get(seed.id) ?? [] : [])
+  const mixKey = seed ? `${seed.id}:${mode}` : ''
+  const [mix, setMix] = useState<Track[]>(mixCache.get(mixKey) ?? [])
   const playContext = useSetAtom(playContextAtom)
-  const navigate = useSetAtom(navigateAtom)
+  const playMix = useSetAtom(playMixAtom)
   const t = useT()
   const shelves = cache?.key === lang ? cache.shelves : null
 
@@ -36,14 +39,17 @@ export default function HomeView() {
     return () => { live = false }
   }, [lang]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // "Your ZS mix": built by the ZS algorithm from your last track, likes and recents.
   useEffect(() => {
     if (!seed) return
-    const hit = mixCache.get(seed.id)
+    const hit = mixCache.get(mixKey)
     if (hit) return setMix(hit)
-    window.zsound.radio(seed.id)
-      .then((r) => { const s = r.slice(0, 16); mixCache.set(seed.id, s); setMix(s) })
+    let live = true
+    buildMixFor(seed, 16)
+      .then((m) => { mixCache.set(mixKey, m); if (live) setMix(m) })
       .catch(() => {})
-  }, [seed?.id])
+    return () => { live = false }
+  }, [mixKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const quick = recent.slice(0, 6)
 
@@ -52,12 +58,12 @@ export default function HomeView() {
       <h1 className="text-4xl font-semibold text-zs-text">{t(greetingKey())}</h1>
 
       {quick.length > 0 && (
-        <div className="grid grid-cols-2 xl:grid-cols-3 gap-2">
-          {quick.map((tr, i) => (
+        <div className="grid grid-cols-2 xl:grid-cols-3 gap-2" aria-label={t('home.recent')}>
+          {quick.map((tr) => (
             <button
               key={tr.id}
               type="button"
-              onClick={() => playContext({ tracks: quick, index: i })}
+              onClick={() => playMix(tr)}
               onMouseEnter={() => window.zsound.prefetch(tr.id)}
               className="quick-tile lift group flex items-center gap-3 rounded-xl overflow-hidden text-left"
             >
@@ -68,9 +74,9 @@ export default function HomeView() {
         </div>
       )}
 
-      {seed && mix.length > 0 && (
-        <Row title={t('home.because', { t: seed.title })}>
-          {mix.map((tr, i) => <TrackCard key={tr.id} track={tr} onPlay={() => playContext({ tracks: mix, index: i })} />)}
+      {mix.length > 0 && (
+        <Row title={t('home.mix')}>
+          {mix.map((tr, i) => <TrackCard key={tr.id} track={tr} onPlay={() => playContext({ tracks: mix, index: i, name: t('home.mix') })} />)}
         </Row>
       )}
 
@@ -84,8 +90,8 @@ export default function HomeView() {
 
       {shelves?.map((s) => (
         <Row key={s.title} title={s.title}>
-          {s.tracks.map((tr, i) => <TrackCard key={tr.id} track={tr} onPlay={() => playContext({ tracks: s.tracks, index: i })} />)}
-          {s.collections.map((c) => <CollectionCard key={c.id} item={c} onOpen={() => navigate({ kind: 'collection', id: c.id })} />)}
+          {s.tracks.map((tr) => <TrackCard key={tr.id} track={tr} onPlay={() => playMix(tr)} />)}
+          {s.collections.map((c) => <CollectionCard key={c.id} item={c} />)}
         </Row>
       ))}
     </div>

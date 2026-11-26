@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Check, Sparkles, RotateCw, Download, LoaderCircle } from 'lucide-react'
 import {
@@ -74,6 +75,8 @@ export default function SettingsView() {
   const [lang, setLang] = useAtom(langAtom)
   const meta = useAtomValue(streamMetaAtom)
   const [info, setInfo] = useAtom(appInfoAtom)
+  const [discord, setDiscord] = useState(false)
+  useEffect(() => { window.zsound.discordAvailable().then(setDiscord) }, [])
   const t = useT()
   const patch = (p: Partial<typeof s>) => setS((prev) => ({ ...prev, ...p }))
   const preset = (Object.keys(EQ_PRESETS) as (keyof typeof EQ_PRESETS)[]).find((k) => EQ_PRESETS[k].every((v, i) => v === s.eq[i]))
@@ -138,6 +141,43 @@ export default function SettingsView() {
         <Line label={t('set.autoplay')} desc={t('set.autoplayDesc')}>
           <Toggle label={t('set.autoplay')} on={s.autoplay} onChange={(v) => patch({ autoplay: v })} />
         </Line>
+        <Line label={t('set.crossfade')} desc={t('set.crossfadeDesc')}>
+          <div className="flex items-center gap-3 w-44">
+            <input
+              type="range"
+              min={0}
+              max={12}
+              step={1}
+              value={s.crossfade ?? 0}
+              aria-label={t('set.crossfade')}
+              onChange={(e) => patch({ crossfade: Number(e.target.value) })}
+              className="zs-range flex-1"
+              style={{ ['--fill' as string]: `${((s.crossfade ?? 0) / 12) * 100}%` }}
+            />
+            <span className="text-xs text-zs-text tabular-nums w-14 text-right">{s.crossfade ? `${s.crossfade} s` : t('set.crossfadeOff')}</span>
+          </div>
+        </Line>
+      </Section>
+
+      <Section title={t('set.algo')} desc={t('set.algoDesc')}>
+        <div className="grid grid-cols-3 gap-3">
+          {(['style', 'balanced', 'discover'] as const).map((m) => {
+            const on = (s.algoMode ?? 'balanced') === m
+            return (
+              <button
+                key={m}
+                type="button"
+                onClick={() => patch({ algoMode: m })}
+                className={`lift relative text-left p-4 rounded-2xl border transition-colors ${on ? 'border-[rgba(143,176,255,0.4)]' : 'border-white/10 hover:border-white/20'}`}
+                style={{ background: on ? 'var(--glass-blue)' : 'var(--glass)', boxShadow: 'var(--shine)' }}
+              >
+                {on && <Check className="absolute top-3 right-3 w-4 h-4 text-zs-accent-light" />}
+                <div className="text-sm font-semibold text-zs-text">{t(`algo.${m}` as Key)}</div>
+                <div className="text-xs text-zs-muted mt-1 leading-relaxed">{t(`algo.${m}.desc` as Key)}</div>
+              </button>
+            )
+          })}
+        </div>
       </Section>
 
       <Section title={t('set.eq')} desc={t('set.eqDesc')}>
@@ -178,6 +218,17 @@ export default function SettingsView() {
       </Section>
 
       <Section title={t('set.perf')}>
+        <Line label={t('set.tray')} desc={t('set.trayDesc')}>
+          <Toggle label={t('set.tray')} on={s.closeToTray !== false} onChange={(v) => patch({ closeToTray: v })} />
+        </Line>
+        <Line label={t('set.dyn')} desc={t('set.dynDesc')}>
+          <Toggle label={t('set.dyn')} on={s.dynamicColor !== false} onChange={(v) => patch({ dynamicColor: v })} />
+        </Line>
+        {discord && (
+          <Line label={t('set.discord')} desc={t('set.discordDesc')}>
+            <Toggle label={t('set.discord')} on={s.discord === true} onChange={(v) => patch({ discord: v })} />
+          </Line>
+        )}
         {info && (
           <Line
             label={t('set.hw')}
@@ -214,6 +265,7 @@ export default function SettingsView() {
             ['set.sc.seek', '→ / ←'],
             ['set.sc.volume', 'Ctrl + ↑ / ↓'],
             ['set.sc.mute', 'M'],
+            ['set.sc.search', 'Ctrl + K'],
           ] as [Key, string][]).map(([k, keys]) => (
             <div key={k} className="contents">
               <span className="text-zs-muted">{t(k)}</span>

@@ -10,10 +10,11 @@ import { Cover, IconBtn, Skeleton, formatTime } from './ui'
 import { useT } from '../i18n'
 import type { CollectionPage, Track } from '../types'
 
-function Header({ cover, kind, title, subtitle, tracks, children }: {
+function Header({ cover, kind, title, name, subtitle, tracks, children }: {
   cover: React.ReactNode
   kind: string
   title: React.ReactNode
+  name: string
   subtitle: string
   tracks: Track[]
   children?: React.ReactNode
@@ -40,7 +41,7 @@ function Header({ cover, kind, title, subtitle, tracks, children }: {
           aria-label={t('col.play')}
           title={t('col.play')}
           disabled={!tracks.length}
-          onClick={() => { setShuffle(false); playContext({ tracks, index: 0 }) }}
+          onClick={() => { setShuffle(false); playContext({ tracks, index: 0, name }) }}
           className="btn-primary w-14 h-14 disabled:opacity-30"
         >
           <Play className="w-6 h-6 ml-0.5" fill="currentColor" />
@@ -48,7 +49,7 @@ function Header({ cover, kind, title, subtitle, tracks, children }: {
         <IconBtn
           title={t('col.shuffle')}
           disabled={!tracks.length}
-          onClick={() => { setShuffle(true); playContext({ tracks, index: Math.floor(Math.random() * tracks.length) }) }}
+          onClick={() => { setShuffle(true); playContext({ tracks, index: Math.floor(Math.random() * tracks.length), name }) }}
           className="w-10 h-10"
         >
           <Shuffle className="w-6 h-6" />
@@ -74,8 +75,16 @@ export function CollectionView({ id }: { id: string }) {
     setPage(hit)
     if (hit) return
     let live = true
+    // First ~100 tracks right away; long playlists fill in behind.
     window.zsound.collection(id)
-      .then((p) => { pageCache.set(id, p); if (live) setPage(p) })
+      .then((p) => {
+        if (live) setPage(p)
+        if (p.tracks.length < 100) {
+          pageCache.set(id, p)
+          return
+        }
+        return window.zsound.collection(id, true).then((full) => { pageCache.set(id, full); if (live) setPage(full) })
+      })
       .catch(() => { if (live) setFailed(true) })
     return () => { live = false }
   }, [id])
@@ -92,7 +101,7 @@ export function CollectionView({ id }: { id: string }) {
   const isAlbum = id.startsWith('MPRE')
   return (
     <div className="p-6 view-in">
-      <Header cover={<Cover src={page.thumbnail} size={544} className="w-48 h-48 shadow-2xl" rounded="rounded-2xl" />} kind={t(isAlbum ? 'col.album' : 'col.playlist')} title={page.title} subtitle={page.subtitle} tracks={page.tracks}>
+      <Header cover={<Cover src={page.thumbnail} size={544} className="w-48 h-48 shadow-2xl" rounded="rounded-2xl" />} kind={t(isAlbum ? 'col.album' : 'col.playlist')} title={page.title} name={page.title} subtitle={page.subtitle} tracks={page.tracks}>
         <IconBtn
           title={t('col.save')}
           onClick={() => { createPlaylist({ name: page.title, tracks: page.tracks }); toast(t('col.saved', { t: page.title })) }}
@@ -101,7 +110,7 @@ export function CollectionView({ id }: { id: string }) {
           <LibraryBig className="w-6 h-6" />
         </IconBtn>
       </Header>
-      <TrackList tracks={page.tracks} showAlbum={!isAlbum} />
+      <TrackList tracks={page.tracks} contextName={page.title} showAlbum={!isAlbum} />
     </div>
   )
 }
@@ -119,10 +128,11 @@ export function LikedView() {
         }
         kind={t('col.playlist')}
         title={t('lib.liked')}
+        name={t('lib.liked')}
         subtitle=""
         tracks={liked}
       />
-      {liked.length ? <TrackList tracks={liked} /> : <p className="text-sm text-zs-muted">{t('col.emptyLiked')}</p>}
+      {liked.length ? <TrackList tracks={liked} contextName={t('lib.liked')} /> : <p className="text-sm text-zs-muted">{t('col.emptyLiked')}</p>}
     </div>
   )
 }
@@ -154,7 +164,7 @@ export function PlaylistView({ id }: { id: string }) {
 
   return (
     <div className="p-6 view-in">
-      <Header cover={<Cover src={playlist.tracks[0]?.thumbnail} size={544} className="w-48 h-48 shadow-2xl" rounded="rounded-2xl" />} kind={t('col.playlist')} title={title} subtitle="" tracks={playlist.tracks}>
+      <Header cover={<Cover src={playlist.tracks[0]?.thumbnail} size={544} className="w-48 h-48 shadow-2xl" rounded="rounded-2xl" />} kind={t('col.playlist')} title={title} name={playlist.name} subtitle="" tracks={playlist.tracks}>
         <IconBtn
           title={t('col.delete')}
           onClick={() => { if (window.confirm(t('col.confirmDelete', { t: playlist.name }))) { remove(id); back() } }}
@@ -164,7 +174,7 @@ export function PlaylistView({ id }: { id: string }) {
         </IconBtn>
       </Header>
       {playlist.tracks.length
-        ? <TrackList tracks={playlist.tracks} playlistId={id} />
+        ? <TrackList tracks={playlist.tracks} contextName={playlist.name} playlistId={id} />
         : <p className="text-sm text-zs-muted">{t('col.emptyPlaylist')}</p>}
     </div>
   )

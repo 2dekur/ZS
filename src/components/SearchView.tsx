@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAtom, useSetAtom } from 'jotai'
 import { Search, X, Play, LoaderCircle } from 'lucide-react'
-import { searchQueryAtom, searchResultsAtom, isSearchingAtom, playContextAtom } from '../store/player'
+import { searchQueryAtom, searchResultsAtom, isSearchingAtom, playMixAtom } from '../store/player'
 import TrackList from './TrackList'
 import { Cover } from './ui'
 import { useT } from '../i18n'
@@ -12,7 +12,7 @@ export default function SearchView() {
   const [query, setQuery] = useAtom(searchQueryAtom)
   const [results, setResults] = useAtom(searchResultsAtom)
   const [busy, setBusy] = useAtom(isSearchingAtom)
-  const playContext = useSetAtom(playContextAtom)
+  const playMix = useSetAtom(playMixAtom)
   const [sugg, setSugg] = useState<string[]>([])
   const [focused, setFocused] = useState(false)
   const [cursor, setCursor] = useState(-1)
@@ -135,7 +135,7 @@ export default function SearchView() {
         <div className="grid grid-cols-1 2xl:grid-cols-[22rem_minmax(0,1fr)] gap-6">
           <section>
             <h2 className="text-xl font-semibold text-zs-text mb-3">{t('search.top')}</h2>
-            <div className="glass lift group relative p-5 cursor-pointer max-w-md" onClick={() => playContext({ tracks: results, index: 0 })}>
+            <div className="glass lift group relative p-5 cursor-pointer max-w-md" onClick={() => playMix(top)}>
               <Cover src={top.thumbnail} size={240} className="w-24 h-24 mb-4" rounded="rounded-xl" />
               <div className="text-2xl font-semibold text-zs-text truncate">{top.title}</div>
               <div className="text-sm text-zs-muted truncate mt-1">{top.artist}{top.album ? ` · ${top.album}` : ''}</div>
@@ -146,7 +146,7 @@ export default function SearchView() {
           </section>
           <section className="min-w-0">
             <h2 className="text-xl font-semibold text-zs-text mb-3">{t('search.songs')}</h2>
-            <TrackList tracks={results} showAlbum={false} />
+            <TrackList tracks={results} showAlbum={false} onPlay={(i) => playMix(results[i])} />
           </section>
         </div>
       )}
